@@ -16,17 +16,18 @@
 #endif
 
 /* GAs parameters */
-#define POPULATION_SIZE     50	     // chromosomes
-#define MAX_GENERATIONS     1000     // number of generations to evolve
-#define XOVER_PROB          0.8      // crossover probability
-#define MUTATION_PROB       0.15     // mutation probability
+#define REPRESENTATION_SIZE 22		  // bits
+#define POPULATION_SIZE     50            // chromosomes
+#define MAX_GENERATIONS     1000          // number of generations to evolve
+#define XOVER_PROB          0.8           // crossover probability
+#define MUTATION_PROB       0.15          // mutation probability
 
 /////////////////////////////// PROBLEM SPECIFIC CODE //////////////////////////////////
 
 
 /* upper and lower interval limits for the candidate function */
-#define X_MIN 	-19.0
-#define X_MAX 	24.0
+#define X_MIN 	-1.0
+#define X_MAX 	2.0
 
 /* the candidate function to be maximised */
 double f(double x){
@@ -40,6 +41,8 @@ double f(double x){
 
 /* chromosome abstraction */
 struct chromosome{
+  /* binary chromosome representation */
+  int *b;
   /* converted binary to decimal value encoded */
   double x_star;
   /* the fitness value of the chromosome */
@@ -68,10 +71,25 @@ double randomize(double l, double h)
   return (((double)(rand()%1000)/1000.0)*(h - l) + l);
 }
 
+/* mapping / encoding function from binary to decimal given a binary string */
+double encode_binary_chromosome(int *b)
+{
+  double ret = 0.0f;
+  for(int i=0;i<REPRESENTATION_SIZE; ++i){
+      ret+=b[i]*pow(2, i);
+    }
+  return ret;
+}
+
 /* initialize a chromosome */
 void init_chromosome(struct chromosome *c){
+  /* create a binary chromosome representation with random genes */
+  c->b = (int*)calloc(REPRESENTATION_SIZE, sizeof(int));
+  for(int i=0;i<REPRESENTATION_SIZE;++i){
+      c->b[i] = ((rand()%1000/1000.0)<0.5)?0:1;
+    }
   /* compute the decimal representation of the genes */
-  c->x_star = randomize(X_MIN, X_MAX);
+  c->x_star = encode_binary_chromosome(c->b); //randomize(X_MIN, X_MAX);
   /* fitness values */
   c->fitness = 0.0f;
   c->rfitness = 0.0f;
@@ -246,15 +264,15 @@ void apply_mutation(struct population *p)
 /* print the state of the current evolution generation */
 void report_state(struct population *p)
 {
-  printf("Generation [%d] : Best fitness %lf", p->gen, p->c[POPULATION_SIZE].fitness);
+  printf("Generation: %d | Best fitness: %lf\n", p->gen, p->c[POPULATION_SIZE].fitness);
 }
 
 /* entry point */
 int main(int argc, char* argv[]){
   srand(time(NULL));
-  printf("Simulation for GAs started...\n");
+  printf("\n\nSimulation for GAs started...\n\n");
   /* the problem is to determine the maximum of f(x) = x*sin(10*pi*x) + 1
-           in the interval xe[-1, 2]
+           in the interval x=[-1, 2]
                 - analytically we have an infinite number of solutions for this equation
                 - 3 types / forms of solutions
                       |	xi = (2*i-1)/20 + ei, i = 1,2....
@@ -270,6 +288,7 @@ int main(int argc, char* argv[]){
   init_population(newp, POPULATION_SIZE);
   evaluate_population(p);
   select_best(p);
+  report_state(p);
   while(p->gen < MAX_GENERATIONS ){
       p->gen++;
       apply_selection(p, newp);
@@ -279,8 +298,8 @@ int main(int argc, char* argv[]){
       evaluate_population(p);
       apply_elitism(p);
     }
-  printf("Evolution is completed...\n");
-  printf("Best chromosome: %lf | Best fitness: %lf\n", p->c[POPULATION_SIZE].x_star, p->c[POPULATION_SIZE].fitness);
-  printf("Simulation ended.\n");
+  printf("\nEvolution is completed...\n\n");
+  printf("\nBest chromosome: %lf | Best fitness: %lf\n\n", p->c[POPULATION_SIZE].x_star, p->c[POPULATION_SIZE].fitness);
+  printf("\nSimulation ended.\n\n");
   return EXIT_SUCCESS;
 }

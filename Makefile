@@ -16,7 +16,7 @@ CXXFLAGS      = -pipe -g -std=c99 -Wall -W $(DEFINES)
 INCPATH       = -I/usr/share/qt4/mkspecs/linux-g++ -I.
 LINK          = g++
 LFLAGS        = -Wl,-O1
-LIBS          = $(SUBLIBS)    
+LIBS          = -lm
 AR            = ar cqs
 RANLIB        = 
 QMAKE         = /usr/bin/qmake

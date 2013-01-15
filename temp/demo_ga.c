@@ -13,7 +13,7 @@
 
 #define POPSIZE 50               /* population size */
 #define MAXGENS 1000             /* max. number of generations */
-#define NVARS 3                  /* no. of problem variables */
+#define NVARS 1                  /* no. of problem variables */
 #define PXOVER 0.8               /* probability of crossover */
 #define PMUTATION 0.15           /* probability of mutation */
 #define TRUE 1

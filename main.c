@@ -11,19 +11,21 @@
 #include <math.h>
 
 #ifndef M_PI
-  #define M_PI 3.1415926535897932384626433832795
+#define M_PI 3.1415926535897932384626433832795
 #endif
 
-/* upper and lower interval limits for the candidate function */
-#define X_MIN 	-1.0 
-#define X_MAX 	2.0 	
-
 /* GAs parameters */
-#define POPULATION_SIZE 1000  // chromosomes
-#define CHROMOSOME_SIZE 22    // bits
-#define MAX_EPOCHS        100
+#define POPULATION_SIZE     5    // chromosomes
+#define MAX_GENERATIONS     100   // number of generations to evolve
+#define XOVER_PROB          0.5   // crossover probability
+#define MUTATION_PROB       0.35  // mutation probability
 
 /////////////////////////////// PROBLEM SPECIFIC CODE //////////////////////////////////
+
+
+/* upper and lower interval limits for the candidate function */
+#define X_MIN 	-1.0
+#define X_MAX 	2.0
 
 /* the candidate function to be maximised */
 double f(double x){
@@ -37,12 +39,14 @@ double f(double x){
 
 /* chromosome abstraction */
 struct chromosome{
-  /* number of bits in the representation */
-  int n;
-  /* binary chromosome genes - bits */
-  int* b;
-  /* converted binary to decimal */
-  long x_star;
+  /* converted binary to decimal value encoded */
+  double x_star;
+  /* the fitness value of the chromosome */
+  double fitness;
+  /* relative fitness */
+  double rfitness;
+  /* cumulative fitness */
+  double cfitness;
 };
 
 /* chromosomes population */
@@ -51,89 +55,203 @@ struct population{
   int size;
   /* chromosomes in the population */
   struct chromosome *c;
+  /* current evolution generation */
+  int gen;
+  /* index of the fittest chromosome */
+  int best_chromosome_idx;
 };
 
+/* random value generator within the problem bounds */
+double randomize(double l, double h)
+{
+  return (((double)(rand()%1000)/1000.0)*(h - l) + l);
+}
+
 /* initialize a chromosome */
-void init_chromosome(struct chromosome c, int n){
-  c.n = n;
-  c.b = (int*)calloc(c.n, sizeof(int));
-  /* setup the genes randomly */
-  for(int i=0; i<c.n; ++i)
-    c.b[i] = (((double) rand () / (double) RAND_MAX)<0.5)?0:1;
-
+void init_chromosome(struct chromosome c){
   /* compute the decimal representation of the genes */
-  for(int i=0; i<c.n; ++i)
-    c.x_star += (c.b[i] * 2^i);
-}
-
-/* encoding function from binary chromosome to a decimal value using
-	- the size of the representation
-	- a min and max values (interval of values)
-	- a conveted base 2 to base 10 value of the chromosome
-*/
-double encode_chromosome(struct chromosome c){
-  return (double)(X_MIN + c.x_star*((X_MAX - X_MIN)/(pow(2, c.n) - 1)));
-}
-
-
-/* compute fitness value for a given chromosome - evaluation function, e */
-double compute_chromosome_fitness(struct chromosome c){
-  return (double)f(encode_chromosome(c));
+  c.x_star = randomize(X_MIN, X_MAX);
+  printf("Chromosome XSTAR: %lf\n", c.x_star);
+  /* fitness values */
+  c.fitness = 0.0f;
+  c.rfitness = 0.0f;
+  c.cfitness = 0.0f;
 }
 
 /* initialize a chromosomes population with given parameters */
-void init_population(struct population p, int psize, int csize){
+void init_population(struct population p, int psize){
   p.size = psize;
   p.c = (struct chromosome*)calloc(psize, sizeof(struct chromosome));
-  for(int i=0; i<p.size; ++i)
-    init_chromosome(p.c[i], csize);
-
+  for(int i=0; i<p.size+1; ++i){
+       init_chromosome(p.c[i]);
+       printf("VALS %lf\n", p.c[i].x_star);
+    }
+  p.gen = 0;
+  p.best_chromosome_idx = 0;
 }
 
-/* perform xover with 2 chromosomes resulting 2 chromosomes after a xover point */
-struct chromosome* compute_crossover(struct chromosome c1, struct chromosome c2, short xover_pt){
-  struct chromosome *ret = (struct chromosome*)calloc(2, sizeof(struct chromosome));
-  int aux_gene = 0;
-  for(int i=0; i<c1.n; ++i){
-      if(i>=xover_pt){
-          aux_gene = c1.b[i];
-          c1.b[i] = c2.b[i];
-          c2.b[i] = aux_gene;
+/* evaluate function, takes a user defined function and computes it for every chromosome */
+void evaluate_population(struct population p)
+{
+  for(int i=0; i<p.size; i++){
+      p.c[i].fitness = f(p.c[i].x_star);
+    }
+}
+
+/* select the best (fittest) chromosome in the population */
+void select_best(struct population p)
+{
+  p.best_chromosome_idx = 0;
+  for(int i=0; i<p.size; ++i){
+      /* the last entry in the population is the best chromosome */
+      if(p.c[i].fitness > p.c[POPULATION_SIZE].fitness){
+          p.best_chromosome_idx = i;
+          p.c[POPULATION_SIZE].fitness = p.c[i].fitness;
         }
     }
-  ret[0] = c1;
-  ret[1] = c2;
-  return ret;
+  /* found the fittest then copy the genes */
+  p.c[POPULATION_SIZE].x_star = p.c[p.best_chromosome_idx].x_star;
 }
 
-/* perform a mutation over one/more genes with a probability equal to the mutation rate */
-struct chromosome compute_mutation(struct chromosome c, int mg){
-      struct chromosome mc;
-      init_chromosome(mc, c.n);
-      mg = rand()%c.n;
-      (c.b[mg]==0)?1:0;
-}
-
-/* select the fittest chromosome in the population */
-struct chromosome select_fittest(struct population p)
+/* apply elitism so that if the previous best chromosome is better than the
+ * current generation best the first will replace the worst chromosome in the
+ * current generation.
+ */
+void apply_elitism(struct population p)
 {
-  double  best_val = 0.0;
-  int best_idx =0;
-  struct chromosome best;
-  for(int i=0;i<p.size;i++){
-    if(compute_chromosome_fitness(p.c[i])> best_val)
-      best_val = compute_chromosome_fitness(p.c[i]);
-      best_idx = i;
-  }
-  best = p.c[best_idx];
-  init_population(p, p.size, p.c->n);
-  p.c[0] = best;
-  return best;
+  struct chromosome best, worst;
+  int best_idx = 0, worst_idx = 0;
+  init_chromosome(best);
+  init_chromosome(worst);
+  best.fitness = p.c[0].fitness;
+  worst.fitness = p.c[0].fitness;
+
+  for(int i=0;i< p.size-1;++i){
+      if(p.c[i].fitness > p.c[i+1].fitness){
+          if(p.c[i].fitness >= best.fitness){
+              best.fitness = p.c[i].fitness;
+              best_idx = i;
+            }
+          if(p.c[i+1].fitness <= worst.fitness){
+              worst.fitness = p.c[i+1].fitness;
+              worst_idx = i+1;
+            }
+        }
+      else{
+          if(p.c[i].fitness <= worst.fitness){
+              worst.fitness = p.c[i].fitness;
+              worst_idx = i;
+            }
+          if(p.c[i+1].fitness >= best.fitness){
+              best.fitness = p.c[i+1].fitness;
+              best_idx = i+1;
+            }
+        }
+    }
+  /* if best chromosome from the new population is better than */
+  /* the best chromosome from the previous population, then    */
+  /* copy the best from the new population; else replace the   */
+  /* worst chromosome from the current population with the     */
+  /* best one from the previous generation                     */
+  if(best.fitness >= p.c[POPULATION_SIZE].fitness){
+      p.c[POPULATION_SIZE].x_star = p.c[best_idx].x_star;
+      p.c[POPULATION_SIZE].fitness = p.c[best_idx].fitness;
+    }
+  else{
+      p.c[worst_idx].x_star = p.c[POPULATION_SIZE].x_star;
+      p.c[worst_idx].fitness = p.c[POPULATION_SIZE].fitness;
+    }
+}
+
+/* selection function using the elitist model in which only the
+ * best chromosome survives - Winner-Take-All
+ */
+void apply_selection(struct population p, struct population newp)
+{
+  double sum_fit = 0.0f;
+  double prob = 0.0f;
+  /* find the global value of the fitness of the population */
+  for(int i=0; i< p.size; ++i){
+      sum_fit+=p.c[i].fitness;
+    }
+  /* compute the relative fitness of the population */
+  for(int i=0; i<p.size; ++i){
+      p.c[i].rfitness = p.c[i].fitness/sum_fit;
+    }
+  p.c[0].cfitness = p.c[0].rfitness;
+
+  /* compute the cumulative fitness of the population */
+  for(int i=1; i< p.size; ++i){
+      p.c[i].cfitness = p.c[i-1].cfitness + p.c[i].rfitness;
+    }
+  /* select the survivors using the cumulative fitness */
+  for(int i=0;i<p.size;++i){
+      prob = rand()%1000/1000.0;
+      if(prob < p.c[0].cfitness)
+        newp.c[i] = p.c[0];
+      else
+        {
+          for(int j=0; j<p.size; ++j){
+              if(prob>=p.c[j].cfitness && prob<p.c[j+1].cfitness)
+                newp.c[i] = p.c[j+1];
+            }
+        }
+    }
+  /* one the new population is created copy it back in the working var */
+  for(int i=0 ;i<p.size; ++i)
+    p.c[i] = newp.c[i];
+}
+
+/* apply the single point crossover operator which takes 2 parents */
+void apply_crossover(struct population p)
+{
+  /* counter of members chosen */
+  int cnt = 0;
+  /* probability to xover */
+  double prob_xover = 0.0f;
+  /* the two parent containers init */
+  struct chromosome p1;
+  init_chromosome(p1);
+  /* cross over loop */
+  for(int i=0; i< p.size; ++i){
+      prob_xover = rand()%1000/1000.0;
+      if(prob_xover < XOVER_PROB){
+          cnt++;
+          if(cnt%2==0){
+              double tmp;
+              tmp = p1.x_star;
+              p1.x_star = p.c[i].x_star;
+              p.c[i].x_star = tmp;
+            }
+          else
+            {
+              p1 = p.c[i];
+            }
+        }
+    }
+}
+
+/* apply mutation - random uniform mutation of the genes */
+void apply_mutation(struct population p)
+{
+  double prb = 0.0f;
+  for(int i=0;i<p.size;++i){
+      prb = rand()%1000/1000.0;
+      if(prb < MUTATION_PROB){
+          p.c[i].x_star = randomize(X_MIN, X_MAX);
+        }
+    }
+}
+
+/* print the state of the current evolution generation */
+void report_state(struct population p)
+{
+  printf("Generation [%d] : Best fitness %lf", p.gen, p.c[POPULATION_SIZE].fitness);
 }
 
 /* entry point */
 int main(int argc, char* argv[]){
-
+  printf("Simulation for GAs started...\n");
   /* the problem is to determine the maximum of f(x) = x*sin(10*pi*x) + 1
            in the interval xe[-1, 2]
                 - analytically we have an infinite number of solutions for this equation
@@ -144,34 +262,22 @@ int main(int argc, char* argv[]){
                 - we split the input interval in 3 x 1000000 equal sized ranges
                 - this means we have a 22-bit representation for chromosomes
         */
-
-  // iterator through epochs
-  int epoch = 0;
-  // initial population of chromosomes
-  struct population p;
-  // the best / fittest chromosome after evolution
-  struct chromosome best;
-  // xover output
-  struct chromosome *xover_out = (struct chromosome*)calloc(2, sizeof(struct chromosome));
-  // initialize population
-  init_population(p, POPULATION_SIZE, CHROMOSOME_SIZE);
-
-
-  // loop to evolve
-  while(++epoch < MAX_EPOCHS){
-      for(int i=1; i<p.size; ++i){
-//          // select
-//          select_fittest(p);
-//          // crossover
-//          xover_out = compute_crossover(p.c[rand()%p.size], p.c[rand()%p.size], 5);
-//          // mutate
-//          p.compute_mutation()
-          // evaluate
-
-
-        }
-  }
-
-  printf("The evolution finished.\n The fittest individual gives a maximum of %lf\n", compute_chromosome_fitness(best));
+  struct population p, newp;
+  init_population(p, POPULATION_SIZE+1);
+  init_population(newp, POPULATION_SIZE+1);
+  evaluate_population(p);
+  select_best(p);
+  while(p.gen<MAX_GENERATIONS){
+      p.gen++;
+      apply_selection(p, newp);
+      apply_crossover(p);
+      apply_mutation(p);
+      report_state(p);
+      evaluate_population(p);
+      apply_elitism(p);
+    }
+  printf("Evolution is completed...\n");
+  printf("Best chromosome: %lf | Best fitness: %lf\n", p.c[POPULATION_SIZE].x_star, p.c[POPULATION_SIZE].fitness);
+  printf("Simulation ended.\n");
   return EXIT_SUCCESS;
 }

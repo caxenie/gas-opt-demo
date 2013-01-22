@@ -18,7 +18,7 @@
 /* GAs parameters */
 #define REPRESENTATION_SIZE 22		  // bits
 #define POPULATION_SIZE     50            // chromosomes
-#define MAX_GENERATIONS     1000          // number of generations to evolve
+#define MAX_GENERATIONS     150         // number of generations to evolve
 #define XOVER_PROB          0.8           // crossover probability
 #define MUTATION_PROB       0.15          // mutation probability
 
@@ -28,6 +28,9 @@
 /* upper and lower interval limits for the candidate function */
 #define X_MIN 	-1.0
 #define X_MAX 	2.0
+
+/* log data */
+FILE *fp;
 
 /* the candidate function to be maximised */
 double f(double x){
@@ -265,10 +268,12 @@ void apply_mutation(struct population *p)
 void report_state(struct population *p)
 {
   printf("Generation: %d | Best fitness: %lf\n", p->gen, p->c[POPULATION_SIZE].fitness);
+  fprintf(fp, "%d,%lf\n", p->gen, p->c[POPULATION_SIZE].fitness);
 }
 
 /* entry point */
 int main(int argc, char* argv[]){
+  fp = fopen("gas_demo_log.txt","w+");
   srand(time(NULL));
   printf("\n\nSimulation for GAs started...\n\n");
   /* the problem is to determine the maximum of f(x) = x*sin(10*pi*x) + 1
@@ -301,5 +306,6 @@ int main(int argc, char* argv[]){
   printf("\nEvolution is completed...\n\n");
   printf("\nBest chromosome: %lf | Best fitness: %lf\n\n", p->c[POPULATION_SIZE].x_star, p->c[POPULATION_SIZE].fitness);
   printf("\nSimulation ended.\n\n");
+  fclose(fp);
   return EXIT_SUCCESS;
 }
